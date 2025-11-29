@@ -1,0 +1,188 @@
+; This file provides an interface to allow assembly output produced by the gcc C compiler
+; expected to be assembled by gas, to instead be assembled by mac68k.
+
+.nlist
+
+.macro .ident a b c d e f
+.endm
+
+; The section names (seg$XXX and $$segXXX) are mainly defined by the source code ported from Greenhills
+; assembler. The gcc compiler uses section names like .data, .text, .bss, etc.
+
+; Pre-define all the sections.
+; RAM sections (short aligned)
+.psect $$seg10,segment=1,data=1,rw
+.psect $$seg11,segment=1,data=1,rw
+.psect $$seg14,segment=1,data=1,rw
+.psect $$seg15,segment=1,data=1,rw
+.psect seg$bss,segment=1,data=1,rw
+
+; ROM sections (sections long aligned, data within section word aligned)
+.psect $$seg9,segment=1,data=1,text,ro
+.psect $$seg99,segment=1,data=1,text,ro
+.psect $$seg13,segment=1,data=1,ro
+.psect seg$rodata,segment=1,data=1,ro
+.psect seg$rostring,segment=0,data=0,ro
+.psect seg$text,segment=1,data=1,text,ro
+
+; Incase a frame pointer is desired/used:
+fp = a6
+section_readonly = 0
+
+; gcc produces a .section directive. So translate it to one of our pre-defined .psects
+
+.macro .section	name, arg2, arg3
+.if identical,name,.bss
+ .psect seg$bss
+ section_readonly = 0
+.iff
+  .if identical,name,.data
+    .psect seg$rodata
+    section_readonly = 1
+  .iff
+    .if identical,name,.text
+      .psect seg$text
+      section_readonly = 1
+    .iff
+      .if identical,name,.rodata
+        .psect seg$rodata
+        section_readonly = 1
+      .iff
+		 .if identical,name,.rodata.str1.1
+		    .psect seg$rostring
+                   section_readonly = 1
+		 .iff
+		   .if identical,name,.text.startup
+		     .psect seg$text
+                     section_readonly = 1
+		   .iff
+			 .psect name;
+                         section_readonly = 0
+		   .endc
+		 .endc
+	   .endc
+    .endc
+  .endc
+.endc
+.endm
+
+; Greenhills syntax uses a section directive with just a number as ID.
+.macro section	name, arg2, arg3
+.psect $$seg'name,segment=1,data=1
+.endm
+
+; gcc outputs a .align and/or .balignw directive
+.macro .align numb
+.if true, numb == 2
+	ds.w 0
+.endc
+.if true, numb == 4
+	ds.w 0
+.endc
+.endm
+
+.macro .balignw algn, fill
+.align algn
+.endm
+
+.macro .balignl algn, fill
+.align algn
+.endm
+
+.macro .set arg1,arg2
+arg1 := arg2
+.endm
+
+.macro TTL arg
+	.title arg
+.endm
+
+.macro xdef arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10
+	.irp xx,< arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 >
+	  .if nb, xx
+            .globl xx
+	  .iff
+	    .mexit 1
+	  .endc
+	.endr
+.endm
+.macro .local arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10
+	.irp xx,< arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 >
+	  .if nb, xx
+            .static xx
+	  .iff
+	    .mexit 1
+	  .endc
+	.endr
+.endm
+
+.macro END
+.endm
+
+.macro .text
+.psect seg$text
+.endm
+
+.macro .data
+.psect seg$rodata
+.endm
+
+.macro .rodata
+.psect seg$rodata
+.endm
+
+.macro .rodata.str1.1
+.psect seg$rostring
+.endm
+
+.macro .bss
+.psect seg$bss
+.endm
+
+.macro .comm name,number,align
+	.save
+	.bss
+.if nb,align
+.if identical,align,2
+	ds.w 0
+.iff
+  .if identical,align,4
+	ds.l 0
+  .endc
+.endc
+.endc
+name::
+	.blkb number
+	.restore
+.endm
+
+.macro	.skip num
+	.blkb	num
+.endm
+
+.macro	.zero bytes
+  .if ne, section_readonly
+    .rept bytes
+      .byte 0
+    .endr
+  .iff
+    .blkb bytes
+  .endc
+.endm
+
+.macro	.swbeg a1 a2
+.endm
+
+.macro	movm.l a1,a2
+	movem.l a1,a2
+.endm
+.macro	movm.w a1,a2
+	movem.w a1,a2
+.endm
+	
+.macro	page
+	.page
+.endm
+.list meb
+.list
+;.list
