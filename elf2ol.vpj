@@ -23,7 +23,7 @@
 				OutputExts="*.o"
 				SaveOption="SaveCurrent"
 				RunFromDir="%rw">
-				<Exec CmdLine='g++ -c %xup %defd -g -o "%bd%n%oe" %i %f'/>
+				<Exec CmdLine='g++ -c %xup %defd -g -Wall -pedantic -o "%bd%n%oe" %i %f'/>
 			</Target>
 			<Target
 				Name="Link"
@@ -34,7 +34,7 @@
 				Deletable="0"
 				SaveOption="SaveCurrent"
 				RunFromDir="%rw">
-				<Exec CmdLine='g++ %xup -g -o "%o" %objs'/>
+				<Exec CmdLine='g++ %xup -g -Wall -pedantic -o "%o" %objs'/>
 			</Target>
 			<Target
 				Name="Build"
@@ -155,7 +155,7 @@
 				OutputExts="*.o"
 				SaveOption="SaveCurrent"
 				RunFromDir="%rw">
-				<Exec CmdLine='g++ -c %xup %defd -o "%bd%n%oe" %i %f'/>
+				<Exec CmdLine='g++ -c %xup %defd -Wall -pedantic -Werror -o "%bd%n%oe" %i %f'/>
 			</Target>
 			<Target
 				Name="Link"
@@ -166,7 +166,7 @@
 				Deletable="0"
 				SaveOption="SaveCurrent"
 				RunFromDir="%rw">
-				<Exec CmdLine='g++ %xup -o "%o" %objs'/>
+				<Exec CmdLine='g++ %xup -Wall -pedantic -Werror -o "%o" %objs'/>
 			</Target>
 			<Target
 				Name="Build"
@@ -265,7 +265,9 @@
 				Value="Executable"/>
 		</List>
 		<Includes/>
-		<Libs PreObjects="0"/>
+		<Libs PreObjects="0">
+			<Lib File="-lelf"/>
+		</Libs>
 	</Config>
 	<Files>
 		<Folder

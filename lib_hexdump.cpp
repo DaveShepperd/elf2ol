@@ -33,7 +33,9 @@ int Hexdump::displayIt( int lim, int addr, const uint8_t *iBuff, const char *pre
 			col = strlen(prefix);
 			if ( col > mFormat+8 )
 				col = mFormat+8;
-			strncpy( line, prefix, col );
+			if ( col > (int)sizeof(line)-1 )
+				col = sizeof(line)-1;
+			strncpy(line, prefix, col);
 			line[col] = ' ';
 		}
 		lbase = line + mFormat+8;
