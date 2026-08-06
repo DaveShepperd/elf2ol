@@ -275,6 +275,7 @@
 			Filters="*.c;*.C;*.cc;*.cpp;*.cp;*.cxx;*.c++;*.prg;*.pas;*.dpr;*.asm;*.s;*.bas;*.java;*.cs;*.sc;*.scala;*.e;*.cob;*.html;*.rc;*.tcl;*.py;*.pl;*.d;*.m;*.mm;*.go;*.groovy;*.gsh"
 			GUID="{8E16189C-BD7E-465E-A8C1-837B135150A0}">
 			<F N="elf2ol.cpp"/>
+			<F N="elf2zo.c"/>
 			<F N="lib_hexdump.cpp"/>
 		</Folder>
 		<Folder
@@ -283,6 +284,7 @@
 			GUID="{DC9BCBD5-0A9A-452A-A6F8-4FA2F2B3F19A}">
 			<F N="formats.h"/>
 			<F N="lib_hexdump.h"/>
+			<F N="version.h"/>
 		</Folder>
 		<Folder
 			Name="Resource Files"
@@ -295,6 +297,11 @@
 		<Folder
 			Name="Other Files"
 			Filters=""
-			GUID="{B114EEF4-CDEA-402D-BB38-E7157FCA29AF}"/>
+			GUID="{B114EEF4-CDEA-402D-BB38-E7157FCA29AF}">
+			<F
+				N="Makefile"
+				Type="Makefile"/>
+			<F N="README.md"/>
+		</Folder>
 	</Files>
 </Project>

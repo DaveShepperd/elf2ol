@@ -1,13 +1,37 @@
-.silent:
+DEFINES = -DEXTERNAL_PACKED_STRUCTS -DALIGNMENT=0 -DLINUX=2
+ELFLIB = /usr/include/libelf
+INCS =  -I${ELFLIB}
+
+#
+# For Linux systems:
+CFLAGS = $(INCS) $(DEFINES) -O -g -std=c99 -Wall -pedantic -ansi 
+CPPFLAGS = $(INCS) $(DEFINES) -O -g -std=c++17 -Wall -ansi 
+CC = gcc 
+CPP = g++
+
+#.slient:
+	
+%.o : %.c
+	$(CC) $(CFLAGS) -c $<
+
+%.o : %.cpp
+	$(CPP) $(CPPFLAGS) -c $<
+
+default: elf2ol elf2zo rdelf
 
 elf2ol: elf2ol.o lib_hexdump.o Makefile
-	g++ -o $@ -O2 elf2ol.o lib_hexdump.o -lelf
+	$(CPP) -o $@ elf2ol.o lib_hexdump.o -lelf
 
 elf2ol.o: elf2ol.cpp formats.h Makefile
-	g++ -c -O2 -Wall -ansi $<
-
 lib_hexdump.o: lib_hexdump.cpp lib_hexdump.h Makefile
-	g++ -c -O2 -Wall $<
+
+rdelf.o : rdelf.c
+rdelf: rdelf.o
+	$(CC) $(CFLAGS) -o $@ $< -lelf
+
+elf2zo.o : elf2zo.c
+elf2zo: elf2zo.o
+	$(CC) $(CFLAGS) -o $@ $< $(ZLIB) -lz -lelf
 
 clean:
-	rm -f elf2ol elf2ol.o lib_hexdump.o
+	rm -f *.o elf2ol rdelf elf2zo

@@ -1,0 +1,9 @@
+*.vpwhistu
+*.vtg
+*.o
+*~
+.vscode
+.mixit_history
+elf2zo
+elf2ol
+rdelf
