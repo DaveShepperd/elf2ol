@@ -58,7 +58,7 @@ typedef struct
 	int shndx;
 } OurSymbol_t;
 
-static void dump_section(Hexdump *hd, int sectionNumb, const Elf_Data *ptr)
+static void dump_section(Hexdump *hd, size_t limit, int sectionNumb, const Elf_Data *ptr)
 {
 	printf("Section dump %d: type=%d, version=%d, size=%" FMT_SZ_PRFX "d, offset=%" FMT_LL_PRFX "d, align=%" FMT_SZ_PRFX "d\n",
 		   sectionNumb,
@@ -70,7 +70,13 @@ static void dump_section(Hexdump *hd, int sectionNumb, const Elf_Data *ptr)
 	if ( !ptr->d_buf )
 		printf("\td_buf is NULL despite d_size being %" FMT_SZ_PRFX "d\n", ptr->d_size);
 	else
-		hd->dumpIt("Data: ", (const uint8_t *)ptr->d_buf, ptr->d_size);
+	{
+		if ( limit && ptr->d_size > limit )
+			printf("section data displpayed clipped by %" FMT_SZ_PRFX "d bytes\n", ptr->d_size-limit);
+		else
+			limit = ptr->d_size;
+		hd->dumpIt("Data: ", (const uint8_t *)ptr->d_buf, limit);
+	}
 }
 
 typedef struct
@@ -84,6 +90,7 @@ typedef struct
 	Hexdump *hd;
 	int remap;
 	int verbose;
+	int limit;
 } ElfParams_t;
 
 static void showSections(ElfParams_t *params)
@@ -290,7 +297,9 @@ static void showSections(ElfParams_t *params)
 				}
 			}
 			else
-				dump_section(params->hd, ii, params->section_data[ii]);
+			{
+				dump_section(params->hd, params->limit, ii, params->section_data[ii]);
+			}
 		}
 		else
 			printf("Section %d has no data\n", ii);
@@ -638,6 +647,7 @@ static int help_em(const char *errMsg, const char *title)
 			"Usage: %s [-drv][-o outfile] file\n"
 			"Where:\n"
 			"-d       = dump the input file to stdout (other options ignored)\n"
+			"-l limit = set max limit of hexdump (only when using -d)\n"
 			"-r       = remap the section names (only when using -o)\n"
 			"-v       = set verbose\n"
 			"-o path  = path to output name (should be named: <bla-bla>.ol)\n"
@@ -654,14 +664,34 @@ int main(int argc, char *argv[])
 	Hexdump hd(0, NULL);
 	FILE *output=NULL;
 	int opt, verbose=0, dumpIt=0, remap=0;
-	char *inpName, *target=NULL;
-	char *outputFilename=NULL;
+	size_t limit=0;
+	char *endp, *inpName, *target=NULL;
+	char cc, *outputFilename=NULL;
 	ElfParams_t showParams;
 	
-	while ( (opt = getopt(argc, argv, "do:rv")) != -1 )
+	while ( (opt = getopt(argc, argv, "dl:o:rv")) != -1 )
 	{
 		switch (opt)
 		{
+		case 'l':
+			endp = NULL;
+			limit = strtol(optarg,&endp,0);
+			if ( !endp )
+			{
+				printf("Invalid limit: %s\n", optarg);
+				return 1;
+			}
+			cc = toupper(*endp);
+			if ( cc == 'K' )
+				limit *= 1024;
+			else if ( cc == 'M' )
+				limit *= 1024*1024;
+			else if ( cc )
+			{
+				printf("Limit multiplier can only be K or M: %s\n", optarg);
+				return 1;
+			}
+			break;
 		case 'd':
 			dumpIt = 1;
 			break;
@@ -723,6 +753,8 @@ int main(int argc, char *argv[])
 			showParams.remap = remap;
 			showParams.target = target;
 			showParams.verbose = verbose;
+			showParams.hd = &hd;
+			showParams.limit = limit;
 			if ( ehdr->e_shnum )
 			{
 				showParams.sections = (Elf32_Shdr **)calloc(ehdr->e_shnum, sizeof(Elf32_Shdr *));
