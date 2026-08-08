@@ -246,18 +246,51 @@ static void showSections(ElfParams_t *params)
 			num = data->d_size / sizeof(Elf32_Sym);
 			for ( jj = 0; jj < num; ++jj, ++sym )
 			{
-				const char *nm;
+				const char *nm, *bindings, *types, *shndx;
+				char shndxV[10];
+				int bi, ti;
+				
 				if ( sym_strs )
-				{
 					nm = sym_strs + sym->st_name;
-				}
+				else
+					nm = "";
+				bi = ELF32_ST_BIND(sym->st_info);
+				bindings = "<Unknown>";
+				if ( bi == STB_LOCAL )
+					bindings = "L"; /* "Local"; */
+				else if ( bi == STB_GLOBAL )
+					bindings = "G"; /* "Global"; */
+				else if ( bi == STB_WEAK )
+					bindings = "W"; /* "Weak"; */
+				ti = ELF32_ST_TYPE(sym->st_info);
+				types = "N"; /* "None"; */
+				if ( ti == STT_OBJECT )
+					types = "O"; /* "Object"; */
+				else if ( ti == STT_FUNC )
+					types = "F"; /* "Function"; */
+				if ( sym->st_shndx == SHN_UNDEF )
+					shndx = " *UND*";
+				else if ( sym->st_shndx == SHN_ABS )
+					shndx = " *ABS*";
+				else if ( sym->st_shndx == SHN_COMMON )
+					shndx = " *COM*";
+				else if ( sym->st_shndx == SHN_XINDEX )
+					shndx = " *IDX*";
 				else
 				{
-					nm = "";
+					snprintf(shndxV,sizeof(shndxV),"0x%04X",sym->st_shndx);
+					shndx = shndxV;
 				}
-				printf("   %4d: value=%08" FMT_PRFX "X, size=%3" FMT_PRFX "d, info=0x%02" FMT_PRFX "X, other=0x%02" FMT_PRFX "X, shndx=%3" FMT_PRFX "d, [%s]\n",
-					   jj, sym->st_value, sym->st_size,
-					   sym->st_info, sym->st_other, sym->st_shndx, nm);
+				printf("   %4d: value=0x%08" FMT_PRFX "X, size=%3" FMT_PRFX "d, info=0x%02X(%s/%s), other=0x%02X, shndx=%s, [%s]\n",
+					   jj,
+					   sym->st_value,
+					   sym->st_size,
+					   sym->st_info,
+					   bindings,
+					   types,
+					   sym->st_other,
+					   shndx,
+					   nm);
 			}
 		}
 		else if ( (eptr=params->section_data[ii]) && eptr->d_buf && eptr->d_size )
@@ -436,41 +469,50 @@ static void cvtSections(ElfParams_t *params, FILE *output)
 				ourSymbols[jj].shndx = sym->st_shndx;
 				if ( ELF32_ST_BIND(sym->st_info) )
 				{
+					int bi;
 					if ( sym_strs )
-					{
 						nm = sym_strs + sym->st_name;
-					}
 					else
-					{
 						nm = "";
-					}
 					ourSymbols[jj].elfSym = sym;
 					ourSymbols[jj].id = localId;
 					++localId;
-					if ( ELF32_ST_TYPE(sym->st_info) && (sym->st_shndx > 0 && sym->st_shndx < ehdr->e_shnum) )
+					bi = ELF32_ST_BIND(sym->st_info);
+					if ( bi == STB_GLOBAL )
 					{
-						if ( sym->st_value )
+						if ( sym->st_shndx == SHN_ABS || sym->st_shndx == SHN_COMMON || (sym->st_shndx > 0 && sym->st_shndx < ehdr->e_shnum) )
 						{
-							fprintf(output, ".defg {%s}%%%d %%%d %d +\n",
-									nm,
-									ourSymbols[jj].id,
-									ourSections[sym->st_shndx].id,
-									sym->st_value);
+							if ( sym->st_value )
+							{
+								fprintf(output, ".defg {%s}%%%d %%%d %d +\n",
+										nm,
+										ourSymbols[jj].id,
+										ourSections[sym->st_shndx].id,
+										sym->st_value);
+							}
+							else
+							{
+								fprintf(output, ".defg {%s}%%%d %%%d\n",
+										nm,
+										ourSymbols[jj].id,
+										ourSections[sym->st_shndx].id);
+							}
 						}
-						else
+						else if ( !sym->st_shndx )
 						{
-							fprintf(output, ".defg {%s}%%%d %%%d\n",
+							fprintf(output, ".ext {%s}%%%d\n",
 									nm,
-									ourSymbols[jj].id,
-									ourSections[sym->st_shndx].id);
+									ourSymbols[jj].id);
 						}
 					}
-					else
+#if 0
+					else if ( bi == STB_WEAK )
 					{
-						fprintf(output, ".ext {%s}%%%d\n",
-								nm,
-								ourSymbols[jj].id);
 					}
+					else if ( bi == STB_LOCAL )
+					{
+					}
+#endif
 				}
 				continue;
 //							printf("   %4d: value=%08" FMT_PRFX "X, size=%3" FMT_PRFX "d, info=%4" FMT_PRFX "d, other=%4" FMT_PRFX "d, shndx=%3" FMT_PRFX "d, [%s]\n",
@@ -659,7 +701,7 @@ int main(int argc, char *argv[])
 {
 	Elf * elf,*arf;
 	Elf32_Ehdr *ehdr;
-	int filedes;
+	int filedes, sts;
 	Elf_Cmd cmd;
 	Hexdump hd(0, NULL);
 	FILE *output=NULL;
@@ -668,6 +710,7 @@ int main(int argc, char *argv[])
 	char *endp, *inpName, *target=NULL;
 	char cc, *outputFilename=NULL;
 	ElfParams_t showParams;
+	unsigned char elfHeader[5];
 	
 	while ( (opt = getopt(argc, argv, "dl:o:rv")) != -1 )
 	{
@@ -725,11 +768,33 @@ int main(int argc, char *argv[])
 		perror("Unable to open output");
 		return 3;
 	}
+	sts = read(filedes,elfHeader,sizeof(elfHeader));
+	if ( sts != sizeof(elfHeader) )
+	{
+		perror("Failed to read input to determine 32/64 mode");
+		close(filedes);
+		return 4;
+	}
+	if ( elfHeader[4] != 1 )
+	{
+		if ( elfHeader[4] == 2 )
+			printf("Input is elf64 format. This tool only handles elf32 input files.\n");
+		else
+			printf("Input is not elf32 format. Is type 0x%02X. This tool only handles elf32 input files.\n", elfHeader[4]);
+		close(filedes);
+		return 5;
+	}
+	if ( lseek(filedes, 0, SEEK_SET) != 0 )
+	{
+		perror("Failed to seek back to 0 after reading header");
+		close(filedes);
+		return 6;
+	}
 	elf_version(EV_CURRENT);
 	if ( (arf = elf_begin(filedes, ELF_C_READ, (Elf *)0)) == 0 )
 	{
 		perror("elf_begin failed");
-		return 4;
+		return 7;
 	}
 	if ( !dumpIt )
 	{
@@ -738,7 +803,7 @@ int main(int argc, char *argv[])
 		{
 			perror("Failed to open output");
 			close(filedes);
-			return 1;
+			return 8;
 		}
 		target = outputFilename;
 	}

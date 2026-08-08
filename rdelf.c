@@ -15,7 +15,9 @@ int main(int argc, char *argv[])
 	Elf_Data *data;
 	Elf_Cmd cmd;
 	int filedes, ii, sects;
-
+	unsigned char elfHeader[5];
+	int sts;
+	
 	if ( argc < 2 )
 	{
 		printf("Usage: rdelf input\n");
@@ -28,6 +30,29 @@ int main(int argc, char *argv[])
 	{
 		perror("Unable to open output");
 		return 3;
+	}
+
+	sts = read(filedes,elfHeader,sizeof(elfHeader));
+	if ( sts != sizeof(elfHeader) )
+	{
+		perror("Failed to read input to determine 32/64 mode");
+		close(filedes);
+		return 4;
+	}
+	if ( elfHeader[4] != 1 )
+	{
+		if ( elfHeader[4] == 2 )
+			printf("Input is elf64 format. This tool only handles elf32 input files.\n");
+		else
+			printf("Input is not elf32 format. Is type 0x%02X. This tool only handles elf32 input files.\n", elfHeader[4]);
+		close(filedes);
+		return 5;
+	}
+	if ( lseek(filedes, 0, SEEK_SET) != 0 )
+	{
+		perror("Failed to seek back to 0 after reading header");
+		close(filedes);
+		return 6;
 	}
 	elf_version(EV_CURRENT);
 	if ( (arf = elf_begin(filedes, ELF_C_READ, (Elf *)0)) == 0 )
@@ -107,9 +132,18 @@ int main(int argc, char *argv[])
 						"BSS",
 						"Relocation entries, no addends",
 						"Reserved",
-						"Dynamic linker symbol table"
+						"Dynamic linker symbol table",
+						"Unknown",
+						"Unknown",
+						"Unknown",
+						"Unknown",
+						"Unknown",
+						"Group"
 					};
-					type = type_names[shdr->sh_type];
+					if ( shdr->sh_type >= (Elf32_Word)n_elts(type_names) )
+						type = "Unknown";
+					else
+						type = type_names[shdr->sh_type];
 				}
 				else if ( shdr->sh_type >= SHT_LOPROC && shdr->sh_type < SHT_HIPROC )
 				{
@@ -146,9 +180,11 @@ int main(int argc, char *argv[])
 						break;
 					}
 				}
-				printf("   %2d, [%s] %s: %08" FMT_L_PRFX "X\n", ii,
+				printf("   %2d, 0x%08" FMT_L_PRFX "X [%s] %s\n",
+					   ii,
+					   shdr->sh_type,
 					   sect_strings ? sect_strings + shdr->sh_name : "",
-					   type, shdr->sh_type);
+					   type);
 				printf("   name=%" FMT_L_PRFX "d, flags=%08" FMT_L_PRFX "X, addr=%08" FMT_L_PRFX "X, offset=%08" FMT_L_PRFX "X\n",
 					   shdr->sh_name, shdr->sh_flags, shdr->sh_addr, shdr->sh_offset);
 				printf("   size=%" FMT_L_PRFX "d, link=%" FMT_L_PRFX "d, info=%" FMT_L_PRFX "d, addralign=%" FMT_L_PRFX "d, entsize=%" FMT_L_PRFX "d\n",
@@ -172,18 +208,51 @@ int main(int argc, char *argv[])
 					for ( jj = 0; jj < num; ++jj, ++sym )
 					{
 						static const char Empty[] = "";
-						const char *nm;
+						const char *nm, *bindings, *types, *shndx;
+						char shndxV[10];
+						int bi, ti;
+						
 						if ( sym_strs )
-						{
 							nm = sym_strs + sym->st_name;
-						}
+						else
+							nm = Empty;
+						bi = ELF32_ST_BIND(sym->st_info);
+						bindings = "<Unknown>";
+						if ( bi == STB_LOCAL )
+							bindings = "L"; /* "Local"; */
+						else if ( bi == STB_GLOBAL )
+							bindings = "G"; /* "Global"; */
+						else if ( bi == STB_WEAK )
+							bindings = "W"; /* "Weak"; */
+						ti = ELF32_ST_TYPE(sym->st_info);
+						types = "N"; /* "None"; */
+						if ( ti == STT_OBJECT )
+							types = "O"; /* "Object"; */
+						else if ( ti == STT_FUNC )
+							types = "F"; /* "Function"; */
+						if ( sym->st_shndx == SHN_UNDEF )
+							shndx = " *UND*";
+						else if ( sym->st_shndx == SHN_ABS )
+							shndx = " *ABS*";
+						else if ( sym->st_shndx == SHN_COMMON )
+							shndx = " *COM*";
+						else if ( sym->st_shndx == SHN_XINDEX )
+							shndx = " *IDX*";
 						else
 						{
-							nm = Empty;
+							snprintf(shndxV,sizeof(shndxV),"0x%04X",sym->st_shndx);
+							shndx = shndxV;
 						}
-						printf("   %4d: value=%08" FMT_L_PRFX "X, size=%3" FMT_L_PRFX "d, info=%4d, other=%4d, shndx=%3d, [%s]\n",
-							   jj, sym->st_value, sym->st_size,
-							   sym->st_info, sym->st_other, sym->st_shndx, nm);
+						printf("   %4d: value=0x%08" FMT_L_PRFX "X, size=%7" FMT_L_PRFX "d, info=0x%02X(%s/%s), other=0x%02X, shndx=%s, [%s]\n",
+							   jj,
+							   sym->st_value,
+							   sym->st_size,
+							   sym->st_info,
+							   bindings,
+							   types,
+							   sym->st_other,
+							   shndx,
+							   nm);
 					}
 				}
 			}

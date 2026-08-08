@@ -58,4 +58,8 @@
 #endif
 #define FMT_PRFX ""
 
+#ifndef n_elts
+#define n_elts(x) (int)(sizeof(x)/sizeof((x)[0]))
+#endif
+
 #endif	/* _FORMATS_H_*/

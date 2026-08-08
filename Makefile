@@ -1,11 +1,11 @@
-DEFINES = -DEXTERNAL_PACKED_STRUCTS -DALIGNMENT=0 -DLINUX=2
+DEFINES = -DEXTERNAL_PACKED_STRUCTS -DALIGNMENT=0 -DLINUX=2 -D_ISOC99_SOURCE
 ELFLIB = /usr/include/libelf
 INCS =  -I${ELFLIB}
 
 #
 # For Linux systems:
-CFLAGS = $(INCS) $(DEFINES) -O -g -std=c99 -Wall -pedantic -ansi 
-CPPFLAGS = $(INCS) $(DEFINES) -O -g -std=c++17 -Wall -ansi 
+CFLAGS = $(INCS) $(DEFINES) -g -std=c99 -Wall -pedantic -ansi -m32
+CPPFLAGS = $(INCS) $(DEFINES) -g -std=c++17 -Wall -ansi 
 CC = gcc 
 CPP = g++
 

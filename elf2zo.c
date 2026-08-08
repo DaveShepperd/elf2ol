@@ -112,10 +112,44 @@ int main(int argc, char *argv[])
 
 	if ( !image )
 	{
+		unsigned char elfHeader[6];
+		int sts;
+		
+		sts = read(filedes,elfHeader,sizeof(elfHeader));
+		if ( sts != sizeof(elfHeader) )
+		{
+			perror("Failed to read input to determine 32/64 mode");
+			close(filedes);
+			return 3;
+		}
+		if ( elfHeader[EI_CLASS] != ELFCLASS32 || elfHeader[EI_DATA] != ELFDATA2LSB )
+		{
+			static const char *endian;
+			if ( elfHeader[EI_DATA] == ELFDATA2LSB )
+				endian = "Little";
+			else if ( elfHeader[EI_DATA] == ELFDATA2MSB )
+				endian = "Big";
+			else
+				endian = "Unknown";
+			if ( elfHeader[EI_CLASS] == ELFCLASS64 )
+				printf("Input is elf64, %s endian format. This tool only handles input files of elf32, little endian.\n", endian);
+			else
+				printf("Input is not elf32, little endian format. Is class: 0x%02X, data: 0x%02X. This tool only handles input files of elf32, little endian.\n",
+					   elfHeader[EI_CLASS], elfHeader[EI_DATA]);
+			close(filedes);
+			return 4;
+		}
+		if ( lseek(filedes, 0, SEEK_SET) != 0 )
+		{
+			perror("Failed to seek back to 0 after reading header");
+			close(filedes);
+			return 5;
+		}
+		elf_version(EV_CURRENT);
 		if ( (arf = elf_begin(filedes, ELF_C_READ, (Elf *)0)) == 0 ) /* prepare to decode */
 		{
 			perror("elf_begin on input file failed");
-			return 4;
+			return 6;
 		}
 
 		cmd = ELF_C_READ;
@@ -202,7 +236,7 @@ int main(int argc, char *argv[])
 					if ( !prog )
 					{
 						fprintf(stderr, "Unable to malloc %d bytes\n", prog_len);
-						return 1;
+						return 7;
 					}
 					for ( jj = 0; jj < sects; ++jj )
 					{
@@ -262,7 +296,7 @@ int main(int argc, char *argv[])
 		if ( sts < 0 )
 		{
 			perror("Error fstat'ing input file");
-			return 2;
+			return 9;
 		}
 		prog_len = st.st_size;
 		if ( prog_len )
@@ -271,13 +305,13 @@ int main(int argc, char *argv[])
 			if ( !prog )
 			{
 				fprintf(stderr, "Unable to malloc %d bytes\n", prog_len);
-				return 3;
+				return 10;
 			}
 			sts = read(filedes, prog, prog_len);
 			if ( (Elf32_Addr)sts != prog_len )
 			{
 				perror("Read error on input");
-				return 4;
+				return 11;
 			}
 		}
 	}
@@ -286,7 +320,7 @@ int main(int argc, char *argv[])
 	if ( !prog_len )                /* if no program data */
 	{
 		printf("Input file empty\n");
-		return 7;
+		return 12;
 	}
 	if ( !no_compress )
 	{
@@ -296,7 +330,7 @@ int main(int argc, char *argv[])
 		if ( sts != Z_OK )
 		{
 			printf("Error compressing. Return code %d\n", sts);
-			return 7;
+			return 13;
 		}
 		if ( verbose )
 			printf("Compressed %s from %d to %ld. Compression ratio %4.2f:1\n",
@@ -360,12 +394,12 @@ int main(int argc, char *argv[])
 	if ( filedes < 0 )
 	{
 		perror("Unable to open output");
-		return 3;
+		return 14;
 	}
 	if ( (elf = elf_begin(filedes, ELF_C_WRITE, (Elf *)0)) == 0 ) /* prepare to write ELF file */
 	{
 		perror("elf_begin failed");
-		return 4;
+		return 15;
 	}
 	ehdr = elf32_newehdr(elf);      /* construct the elf header */
 	ehdr->e_type = out_exe ? ET_EXEC : ET_REL;
