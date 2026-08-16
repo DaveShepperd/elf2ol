@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
 			close(filedes);
 			return 3;
 		}
-		if ( elfHeader[EI_CLASS] != ELFCLASS32 || elfHeader[EI_DATA] != ELFDATA2LSB )
+		if ( elfHeader[EI_CLASS] != ELFCLASS32 )
 		{
 			static const char *endian;
 			if ( elfHeader[EI_DATA] == ELFDATA2LSB )
@@ -132,10 +132,10 @@ int main(int argc, char *argv[])
 			else
 				endian = "Unknown";
 			if ( elfHeader[EI_CLASS] == ELFCLASS64 )
-				printf("Input is elf64, %s endian format. This tool only handles input files of elf32, little endian.\n", endian);
+				printf("Input is elf64, %s endian format. This tool only handles input files of elf32.\n", endian);
 			else
-				printf("Input is not elf32, little endian format. Is class: 0x%02X, data: 0x%02X. This tool only handles input files of elf32, little endian.\n",
-					   elfHeader[EI_CLASS], elfHeader[EI_DATA]);
+				printf("Input is not elf32, %s endian format. Is class: 0x%02X, data: 0x%02X. This tool only handles input files of elf32.\n",
+					   endian, elfHeader[EI_CLASS], elfHeader[EI_DATA]);
 			close(filedes);
 			return 4;
 		}

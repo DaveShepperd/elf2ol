@@ -39,12 +39,12 @@ int main(int argc, char *argv[])
 		close(filedes);
 		return 4;
 	}
-	if ( elfHeader[4] != 1 )
+	if ( elfHeader[EI_CLASS] != ELFCLASS32 )
 	{
-		if ( elfHeader[4] == 2 )
+		if ( elfHeader[EI_CLASS] == ELFCLASS64 )
 			printf("Input is elf64 format. This tool only handles elf32 input files.\n");
 		else
-			printf("Input is not elf32 format. Is type 0x%02X. This tool only handles elf32 input files.\n", elfHeader[4]);
+			printf("Input is not elf32 format. Is type 0x%02X. This tool only handles elf32 input files.\n", elfHeader[EI_CLASS]);
 		close(filedes);
 		return 5;
 	}
@@ -117,10 +117,10 @@ int main(int argc, char *argv[])
 			{
 				const char *type;
 
-				type = "Unknown type";
+				type = "Unknown";
 				if ( shdr->sh_type < SHT_NUM )
 				{
-					static const char *const type_names[] = {
+					static const char *const type_names[SHT_NUM] = {
 						"Unused",
 						"Program",
 						"Symbol table",
@@ -130,20 +130,21 @@ int main(int argc, char *argv[])
 						"Dynamic linking information",
 						"Notes",
 						"BSS",
-						"Relocation entries, no addends",
-						"Reserved",
-						"Dynamic linker symbol table",
-						"Unknown",
-						"Unknown",
-						"Unknown",
-						"Unknown",
-						"Unknown",
-						"Group"
+						"Relocation entries, no addends", /* 9 */
+						NULL, /* 10 */
+						"Dynamic linker symbol table", /* 11*/
+						NULL, /* 12 */
+						NULL, /* 13 */
+						"Array of constructors", /* 14 */
+						"Array of destructors",
+						"Array of pre-constructors",
+						"Section group",
+						"Extended section indices",
+						"RELR relative relocations"
 					};
-					if ( shdr->sh_type >= (Elf32_Word)n_elts(type_names) )
-						type = "Unknown";
-					else
-						type = type_names[shdr->sh_type];
+					type = type_names[shdr->sh_type];
+					if ( !type )
+						type = "Reserved";
 				}
 				else if ( shdr->sh_type >= SHT_LOPROC && shdr->sh_type < SHT_HIPROC )
 				{
