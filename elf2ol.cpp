@@ -95,6 +95,7 @@ typedef struct
 	int limit;
 	int errors;
 	int dumpCvt;
+	int dump2Rom;
 } ElfParams_t;
 
 static void showIndividualSection(const ElfParams_t *params, const char *sect_strings, const char *title, const Elf32_Shdr *shdr)
@@ -368,6 +369,68 @@ static void showSections(ElfParams_t *params)
 	if ( !sects )
 	{
 		printf("No sections\n");
+	}
+}
+
+static void showInRomFormat(ElfParams_t *params)
+{
+	Elf_Scn *scn;
+	Elf32_Shdr *shdr;
+	int ii, sects;
+	Elf *elf = params->elf;
+	Elf32_Ehdr *ehdr = params->ehdr;
+	char timeStamp[64];
+	struct tm *ourTime;
+	time_t now;
+	
+	for ( sects = ii = 0; ii < ehdr->e_shnum; ++ii )
+	{
+		if ( (scn = elf_getscn(elf, ii)) != 0 )
+		{
+			params->sections[ii] = elf32_getshdr(scn);
+			params->section_data[ii] = elf_getdata(scn, NULL);
+			++sects;
+		}
+	}
+	now = time(NULL);
+	ourTime = localtime(&now);
+	strftime(timeStamp,sizeof(timeStamp),"%c",ourTime);
+	printf("; ROM/PROM data file created via elf2ol V%s %s\n\n", VERSION, timeStamp);
+	printf("; File name = stdout\n\n");
+	for ( ii = 1; (shdr = params->sections[ii]) && ii < ehdr->e_shnum; ++ii )
+	{
+		if ( (shdr->sh_type == SHT_PROGBITS || shdr->sh_type == SHT_NOBITS) && (shdr->sh_flags&SHF_ALLOC))
+		{
+			Elf_Data *ptr = params->section_data[ii];
+			
+			if ( ptr->d_size && ptr->d_buf )
+			{
+				size_t jj, kk;
+				Elf32_Word addr;
+				uint8_t *chPtr;
+				size_t limit;
+				
+				limit = params->limit ? params->limit : 16;
+				addr = shdr->sh_addr;
+				chPtr = (uint8_t *)ptr->d_buf;
+				for (jj=0; jj < ptr->d_size; )
+				{
+					size_t lineLen = limit;
+					if ( lineLen > ptr->d_size-jj )
+						lineLen = ptr->d_size-jj;
+					if ( addr >= 0x10000 )
+						printf("%X=%02X", addr, *chPtr);
+					else
+						printf("%04X=%02X", addr, *chPtr);
+					++chPtr;
+					for ( kk = 1; kk < lineLen; ++kk, ++chPtr )
+						printf(",%02X", *chPtr);
+					printf("\n");
+					addr += kk;
+					jj += kk;
+				}
+			}
+		}
 	}
 }
 
@@ -650,6 +713,8 @@ static void outputRelExpr(OurElf_Rel_t *orptr)
 			outputOrg(orptr);
 			tag = orptr->ehdr->e_ident[EI_DATA] == ELFDATA2LSB ? "i":"I";
 			orptr->r_addend = getElfHalf(orptr->ehdr, (uint8_t *)orptr->secToRel->elfData->d_buf + orptr->r_offset);
+			if ( (orptr->r_addend&0x8000) )
+				orptr->r_addend |= 0xFFFF0000;
 			if ( orptr->r_addend )
 			{
 				fprintf(orptr->output, "%%%d %d + %%%d -:%s\n",
@@ -671,10 +736,8 @@ static void outputRelExpr(OurElf_Rel_t *orptr)
 		case R_MIPS_PC16:		/* 10 (PC relative 16 bits) */
 			outputOrg(orptr);
 			tag = orptr->ehdr->e_ident[EI_DATA] == ELFDATA2LSB ? "w":"W";
-			orptr->r_addend = getElfHalf(orptr->ehdr, (uint8_t *)orptr->secToRel->elfData->d_buf + orptr->r_offset);
-			fprintf(orptr->output, "%%%d %d + %%%d %d + - 2 > 65535 &:%s\n",
+			fprintf(orptr->output, "%%%d %%%d %d + - 2 > 65535 &:%s\n",
 					symLocalID,
-					orptr->r_addend,
 					orptr->secToRel->localID,
 					orptr->r_offset+4,
 					tag
@@ -1176,6 +1239,7 @@ static int help_em(const char *errMsg, const char *title)
 			"-D       = dump our section and symbol tables\n"
 			"-l limit = set max limit of hexdump (only when using -d)\n"
 			"-r       = remap the section names (only when using -o)\n"
+			"-R       = dump just .text section in .rom format\n"
 			"-v       = set verbose\n"
 			"-o path  = path to output name (should be named: <bla-bla>.ol)\n"
 			,title);
@@ -1190,14 +1254,14 @@ int main(int argc, char *argv[])
 	Elf_Cmd cmd;
 	Hexdump hd(0, NULL);
 	FILE *output=NULL;
-	int opt, verbose=0, dumpIt=0, dumpCvt=0, remap=0;
+	int opt, verbose=0, dumpIt=0, dumpCvt=0, remap=0, dump2Rom=0;
 	size_t limit=0;
 	char *endp, *inpName, *target=NULL;
 	char cc, *outputFilename=NULL;
 	ElfParams_t showParams;
 	unsigned char elfHeader[5];
 	
-	while ( (opt = getopt(argc, argv, "dDl:o:rv")) != -1 )
+	while ( (opt = getopt(argc, argv, "dDl:o:rRv")) != -1 )
 	{
 		switch (opt)
 		{
@@ -1229,6 +1293,9 @@ int main(int argc, char *argv[])
 		case 'o':
 			outputFilename = optarg;
 			break;
+		case 'R':
+			dump2Rom = 1;
+			break;
 		case 'r':
 			remap = 1;
 			break;
@@ -1244,7 +1311,7 @@ int main(int argc, char *argv[])
 	if ( optind >= argc )
 		return help_em("No input provided", argv[0]);
 
-	if ( !dumpIt && !outputFilename )
+	if ( !dumpIt && !dump2Rom && !outputFilename )
 	{
 		return help_em("No output name provided", argv[0]);
 	}
@@ -1284,7 +1351,7 @@ int main(int argc, char *argv[])
 		perror("elf_begin failed");
 		return 7;
 	}
-	if ( !dumpIt )
+	if ( !dumpIt && !dump2Rom )
 	{
 		output = fopen(outputFilename, "w");
 		if ( !output )
@@ -1317,6 +1384,8 @@ int main(int argc, char *argv[])
 			}
 			if ( dumpIt )
 				showSections(&showParams);
+			else if ( dump2Rom )
+				showInRomFormat(&showParams);
 			else
 				cvtSections(&showParams, output);
 			if ( showParams.sections )
