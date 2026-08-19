@@ -17,7 +17,7 @@ CPP = g++
 %.o : %.cpp
 	$(CPP) $(CPPFLAGS) -c $<
 
-default: elf2ol rdelf
+default: elf2ol
 
 elf2ol: elf2ol.o lib_hexdump.o Makefile
 	$(CPP) -o $@ elf2ol.o lib_hexdump.o -lelf
@@ -25,9 +25,5 @@ elf2ol: elf2ol.o lib_hexdump.o Makefile
 elf2ol.o: elf2ol.cpp formats.h Makefile
 lib_hexdump.o: lib_hexdump.cpp lib_hexdump.h Makefile
 
-rdelf.o : rdelf.c formats.h Makefile
-rdelf: rdelf.o
-	$(CC) $(CFLAGS) -o $@ $< -lelf
-
 clean:
-	rm -f *.o elf2ol rdelf 
+	rm -f *.o elf2ol 
