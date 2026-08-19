@@ -4,6 +4,7 @@
 #include <libelf.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <string.h>
 #include <zlib.h>
 #include <sys/stat.h>
@@ -56,6 +57,7 @@ int main(int argc, char *argv[])
 	int str_size;
 	int sym_name_off = 0, sym_comp_off = 0, sym_decomp_off = 0, sym_xfer_off = 0;
 	char *s = 0;
+	const char *inpFileName, *outFileName;
 	unsigned char *prog = 0;
 	Elf32_Addr prog_len = 0;
 	int len, sts, verbose = 0;
@@ -63,17 +65,13 @@ int main(int argc, char *argv[])
 	Elf32_Addr prog_base=0, prog_memsz=0, prog_sa=0;
 	uLong comprLen = 0, prog_align = 4;
 	unsigned char *compr = 0;
-
+	int opt;
+	
 	printf("elf2zo Copyright 1998 Atari Games, Corp. Version %s %s\n", __DATE__, __TIME__);
 	elf_version(EV_CURRENT);        /* required by the elf library functions */
-	--argc;
-	++argv;
-	for (; argc > 0; --argc, ++argv )    /* process command args */
+	while ( (opt=getopt(argc,argv,"ein:vz")) != -1 )
 	{
-		s = *argv;
-		if ( *s++ != '-' )
-			break;
-		switch (*s++)
+		switch (opt)
 		{
 		case 'e':
 			out_exe = 1;
@@ -82,11 +80,7 @@ int main(int argc, char *argv[])
 			image = 1;
 			continue;
 		case 'n':
-			if ( *s == 0 )
-			{
-				return say_help();
-			}
-			u_sym_name = s;
+			u_sym_name = optarg;
 			continue;
 		case 'v':
 			verbose = 1;
@@ -98,12 +92,13 @@ int main(int argc, char *argv[])
 			return say_help();
 		}
 	}
-	if ( argc < 2 )
+	if ( argc-optind < 2 )
 	{
 		return say_help();
 	}
-
-	filedes = open(*argv, O_RDONLY, 0); /* open input file */
+	inpFileName = argv[optind];
+	outFileName = argv[optind+1];
+	filedes = open(inpFileName, O_RDONLY, 0); /* open input file */
 	if ( filedes < 0 )
 	{
 		perror("Unable to open input");
@@ -390,7 +385,7 @@ int main(int argc, char *argv[])
 		strcat(s, SUFFIX_XFER);
 	}
 
-	filedes = open(*argv, O_RDWR | O_TRUNC | O_CREAT, 0664);    /* open the output */
+	filedes = open(outFileName, O_RDWR | O_TRUNC | O_CREAT, 0664);    /* open the output */
 	if ( filedes < 0 )
 	{
 		perror("Unable to open output");
