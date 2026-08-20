@@ -6,3 +6,5 @@ I first coded this app to dump the elf files just to see if I had the elf file d
 I only ever built it with gnu tools on Ubuntu and have no plans to ever use it elsewhere.
 
 P.S. It did help find the problem with mac68k which has subsequently been fixed.
+
+P.P.S. I noticed, too late, I had written an elf reader, rdelf, in the early to mid 1990's. It can be found [IN HERE](//https:github.com/daveshepperd/elf2zo.git).
